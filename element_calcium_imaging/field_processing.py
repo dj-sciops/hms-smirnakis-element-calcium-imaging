@@ -1,9 +1,6 @@
 import gc
-import importlib
-import inspect
 import pathlib
-from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 
 import datajoint as dj
@@ -80,7 +77,7 @@ class FieldPreprocessing(dj.Computed):
         return ks - imaging.Processing.proj()
 
     def make(self, key):
-        execution_time = datetime.utcnow()
+        execution_time = datetime.now(timezone.utc)
         processed_root_data_dir = scan.get_processed_root_data_dir()
 
         output_dir = (imaging.ProcessingTask & key).fetch1("processing_output_dir")
@@ -239,7 +236,7 @@ class FieldPreprocessing(dj.Computed):
                 f"Field processing for {acq_software} scans with {method} is not yet supported in this table."
             )
 
-        exec_dur = (datetime.utcnow() - execution_time).total_seconds() / 3600
+        exec_dur = (datetime.now(timezone.utc) - execution_time).total_seconds() / 3600
         self.insert1(
             {
                 **key,
@@ -260,7 +257,7 @@ class FieldProcessing(dj.Computed):
     """
 
     def make(self, key):
-        execution_time = datetime.utcnow()
+        execution_time = datetime.now(timezone.utc)
         processed_root_data_dir = scan.get_processed_root_data_dir()
 
         output_dir, params = (FieldPreprocessing.Field & key).fetch1(
@@ -294,6 +291,15 @@ class FieldProcessing(dj.Computed):
             from suite2p.run_s2p import run_plane
 
             ops_path = find_full_path(processed_root_data_dir, extra_params["ops_path"])
+
+            # calculate aspect ratio and diameter
+            um_height, um_width = (scan.ScanInfo.Field & key).fetch1(
+                "um_height", "um_width"
+            )
+            aspect = um_height / um_width
+            params["aspect"] = aspect
+            params["diameter"] = round(10 * aspect)
+
             run_plane(params, ops_path=ops_path)
         else:
             raise NotImplementedError(
@@ -304,7 +310,7 @@ class FieldProcessing(dj.Computed):
         # as these may have large memory footprint and may not be cleared fast enough
         gc.collect()
 
-        exec_dur = (datetime.utcnow() - execution_time).total_seconds() / 3600
+        exec_dur = (datetime.now(timezone.utc) - execution_time).total_seconds() / 3600
         self.insert1(
             {
                 **key,
@@ -344,7 +350,7 @@ class FieldPostProcessing(dj.Computed):
         return FieldPreprocessing & per_plane_proc
 
     def make(self, key):
-        execution_time = datetime.utcnow()
+        execution_time = datetime.now(timezone.utc)
         method, params = (
             imaging.ProcessingTask * imaging.ProcessingParamSet & key
         ).fetch1("processing_method", "params")
@@ -357,7 +363,7 @@ class FieldPostProcessing(dj.Computed):
 
             io.combined(output_dir / "suite2p", save=True)
 
-        exec_dur = (datetime.utcnow() - execution_time).total_seconds() / 3600
+        exec_dur = (datetime.now(timezone.utc) - execution_time).total_seconds() / 3600
         self.insert1(
             {
                 **key,
@@ -368,7 +374,7 @@ class FieldPostProcessing(dj.Computed):
         imaging.Processing.insert1(
             {
                 **key,
-                "processing_time": datetime.utcnow(),
+                "processing_time": datetime.now(timezone.utc),
                 "package_version": "",
             },
             allow_direct_insert=True,
