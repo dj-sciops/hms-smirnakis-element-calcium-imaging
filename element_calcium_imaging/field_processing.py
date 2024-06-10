@@ -102,7 +102,7 @@ class FieldPreprocessing(dj.Computed):
         ).fetch1("processing_method", "params")
         acq_software = (scan.Scan & key).fetch1("acq_software")
 
-        field_list = (scan.ScanInfo.Field & key).fetch("field_idx")
+        field_ind = (scan.ScanInfo.Field & key).fetch("field_idx")
         sampling_rate, ndepths, nchannels, nfields, nrois = (
             scan.ScanInfo & key
         ).fetch1("fps", "ndepths", "nchannels", "nfields", "nrois")
@@ -123,7 +123,7 @@ class FieldPreprocessing(dj.Computed):
             )
 
             field_processing_tasks = []
-            for field_idx, plane_idx in zip(field_list, PVmeta.meta["plane_indices"]):
+            for field_idx, plane_idx in zip(field_ind, PVmeta.meta["plane_indices"]):
                 pln_output_dir = output_dir / f"pln{plane_idx}_chn{channel}"
                 pln_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -169,9 +169,7 @@ class FieldPreprocessing(dj.Computed):
                 for image_file in image_files
             ]
 
-            scan_ = scanreader.read_scan(
-                image_files
-            )  # scan_[fields, y, x, channel, frames]
+            scan_ = scanreader.read_scan(image_files)
 
             ops = {**default_ops(), **params}
 
@@ -185,29 +183,6 @@ class FieldPreprocessing(dj.Computed):
             ops["tiff_list"] = [f for f in image_files]
             ops["force_sktiff"] = False
 
-            # ops['diameter']:
-            from ScanImageTiffReader import ScanImageTiffReader
-            import json
-
-            reader = ScanImageTiffReader(image_files[0])
-            tiff_dim = reader.shape()
-            h = reader.metadata()
-            js = h.find("{\n")
-            hh = h[1 : js - 2].splitlines()
-            json_obj = json.loads(h[js:-1])
-            si_rois = json_obj["RoiGroups"]["imagingRoiGroup"]["rois"]
-            if type(si_rois) is dict:
-                si_rois = [si_rois]  # scan_
-            # si_rois[n_field] has "zs"=[100,200], and "scanfields"= [dict1, dict2]. zs = si_rois[3]["zs"] # [100,200]
-
-            field_list, roi_list, field_z_list = (scan.ScanInfo.Field & key).fetch(
-                "field_idx", "roi", "field_z"
-            )
-            plane_list = [
-                sorted(set(field_z_list)).index(value) for value in field_z_list
-            ]
-            assert len(roi_list) == len(field_list) == len(plane_list)
-
             ops.update(
                 {
                     "mesoscan": True,
@@ -217,40 +192,14 @@ class FieldPreprocessing(dj.Computed):
                     "dy": [],  # y-offset for each field
                     "slices": [],  # plane index for each field
                     "lines": [],  # row indices for each field
-                    "diameter": [],  # calculated diameter for each field
                 }
             )
-
             for field_idx, field_info in enumerate(scan_.fields):
                 ops["dx"].append(field_info.xslices[0].start)
                 ops["dy"].append(field_info.yslices[0].start)
                 ops["slices"].append(field_info.slice_id)
                 ops["lines"].append(
                     np.arange(field_info.yslices[0].start, field_info.yslices[0].stop)
-                )
-
-            # Per field based on si_rois obj:
-            aspect = []
-            diameters = []
-            for i in np.arange(0, len(plane_list)):  # list of 10 fields
-                zs = 0  # Not sure about this. TO-DO
-                mmPerPix_Y = si_rois[roi_list[i]]["scanfields"][zs][
-                    "pixelToRefTransform"
-                ][1][1]
-                mmPerPix_X = si_rois[roi_list[i]]["scanfields"][zs][
-                    "pixelToRefTransform"
-                ][0][0]
-                aspect.append(np.array(mmPerPix_Y) / np.array(mmPerPix_X))
-                diameters.append([10, round(10 * aspect[i])])
-
-            diameters_unique = np.unique(diameters)
-
-            # assume that the round value is going to be the same in all the fields (25)
-            if len(diameters_unique) == 2:
-                ops["diameter"] = diameters_unique[1]
-            else:
-                raise NotImplementedError(
-                    f"Different diameter values for fields (n={len(diameters_unique)}) with {method} is not yet supported in this table."
                 )
 
             # generate binary files for each field
