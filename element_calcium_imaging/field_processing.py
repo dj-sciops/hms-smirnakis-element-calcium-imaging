@@ -291,6 +291,15 @@ class FieldProcessing(dj.Computed):
             from suite2p.run_s2p import run_plane
 
             ops_path = find_full_path(processed_root_data_dir, extra_params["ops_path"])
+
+            # calculate aspect ratio and diameter
+            um_height, um_width = (scan.ScanInfo.Field & key).fetch1(
+                "um_height", "um_width"
+            )
+            aspect = um_height / um_width
+            params["aspect"] = aspect
+            params["diameter"] = round(10 * aspect)
+
             run_plane(params, ops_path=ops_path)
         else:
             raise NotImplementedError(
