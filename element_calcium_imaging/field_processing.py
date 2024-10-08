@@ -298,7 +298,11 @@ class FieldProcessing(dj.Computed):
             )
             aspect = um_height / um_width
             params["aspect"] = aspect
-            params["diameter"] = round(10 * aspect)
+
+            diameter = params.get(
+                "diameter", 10
+            )  # default diameter is 10um unless specified in `ProcessingParamSet`
+            params["diameter"] = [diameter, round(diameter * aspect)]
 
             run_plane(params, ops_path=ops_path)
         else:
