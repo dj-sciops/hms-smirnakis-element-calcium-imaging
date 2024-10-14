@@ -293,18 +293,21 @@ class FieldProcessing(dj.Computed):
             ops_path = find_full_path(processed_root_data_dir, extra_params["ops_path"])
 
             # calculate aspect ratio and diameter
-            um_height, um_width = (scan.ScanInfo.Field & key).fetch1(
-                "um_height", "um_width"
-            )
-            aspect = um_height / um_width
+            px_height, px_width, um_height, um_width = (
+                scan.ScanInfo.Field & key
+            ).fetch1("px_height", "px_width", "um_height", "um_width")
+            aspect = (um_height / px_height) / (um_width / px_width)
             params["aspect"] = aspect
 
-            diameter = params.get(
-                "diameter", 10
-            )  # default diameter is 10um unless specified in `ProcessingParamSet`
+            diameter = params.get("diameter")  # get diameter
+            if diameter == 0:
+                diameter = (
+                    10  # Set default diameter to 10um if not specified in the paramset
+                )
             params["diameter"] = [diameter, round(diameter * aspect)]
 
             run_plane(params, ops_path=ops_path)
+
         else:
             raise NotImplementedError(
                 f"Field processing for {acq_software} scans with {method} is not yet supported in this table."
