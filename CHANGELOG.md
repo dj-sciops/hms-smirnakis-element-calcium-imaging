@@ -6,6 +6,7 @@ Observes [Semantic Versioning](https://semver.org/spec/v2.0.0.html) standard and
 ## [0.4.0] - 2024-10-14
 
 - Fix - Fix aspect calculation in `FieldProcessing` table
+- Add - suite2p GUI installation to visualize pipeline results
 
 ## [0.3.0] - 2024-10-08
 
