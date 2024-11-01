@@ -55,7 +55,7 @@ setup(
         "sbxreader": ["sbxreader @ git+https://github.com/jcouto/sbxreader.git"],
         "scanreader": ["scanreader @ git+https://github.com/atlab/scanreader.git"],
         "suite2p": [
-            "suite2p[io] @ git+https://github.com/datajoint/suite2p.git@mesoscan"
+            "suite2p[io,gui] @ git+https://github.com/datajoint/suite2p.git@mesoscan"
         ],
         "tests": ["pytest", "pytest-cov", "shutils"],
     },

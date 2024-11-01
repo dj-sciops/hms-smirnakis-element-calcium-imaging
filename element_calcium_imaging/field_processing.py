@@ -1,11 +1,11 @@
 import gc
 import pathlib
-from datetime import datetime, timezone
 import re
+from datetime import datetime, timezone
 
 import datajoint as dj
 import numpy as np
-from element_interface.utils import dict_to_uuid, find_full_path, find_root_directory
+from element_interface.utils import find_full_path
 
 from . import scan
 
@@ -108,9 +108,7 @@ class FieldPreprocessing(dj.Computed):
         ).fetch1("fps", "ndepths", "nchannels", "nfields", "nrois")
 
         if method == "caiman" and acq_software == "PrairieView":
-            from element_interface.prairie_view_loader import (
-                PrairieViewMeta,
-            )
+            from element_interface.prairie_view_loader import PrairieViewMeta
 
             image_file = (scan.ScanInfo.ScanFile & key).fetch("file_path", limit=1)[0]
             pv_dir = find_full_path(scan.get_imaging_root_data_dir(), image_file).parent
@@ -195,8 +193,12 @@ class FieldPreprocessing(dj.Computed):
                 }
             )
             for field_idx, field_info in enumerate(scan_.fields):
-                ops["dx"].append(field_info.xslices[0].start)
-                ops["dy"].append(field_info.yslices[0].start)
+                ops["dx"].append(
+                    field_info.xslices[0].start
+                )  # Location of the upper left corner in the field in pixels; scan.fields[idx].x-width_in_degrees[idx]/2
+                ops["dy"].append(
+                    field_info.yslices[0].start
+                )  # Location of the upper left corner in the field in pixels
                 ops["slices"].append(field_info.slice_id)
                 ops["lines"].append(
                     np.arange(field_info.yslices[0].start, field_info.yslices[0].stop)
@@ -293,10 +295,11 @@ class FieldProcessing(dj.Computed):
             ops_path = find_full_path(processed_root_data_dir, extra_params["ops_path"])
 
             # calculate aspect ratio and diameter
-            um_height, um_width = (scan.ScanInfo.Field & key).fetch1(
-                "um_height", "um_width"
-            )
-            aspect = um_height / um_width
+            px_height, px_width = (
+                scan.ScanInfo.Field & key
+            ).fetch1("px_height", "px_width")
+            
+            aspect = px_width / px_height
             params["aspect"] = aspect
 
             diameter = params.get(
@@ -305,6 +308,7 @@ class FieldProcessing(dj.Computed):
             params["diameter"] = [diameter, round(diameter * aspect)]
 
             run_plane(params, ops_path=ops_path)
+
         else:
             raise NotImplementedError(
                 f"Field processing for {acq_software} scans with {method} is not yet supported in this table."
