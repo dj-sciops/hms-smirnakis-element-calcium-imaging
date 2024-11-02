@@ -192,13 +192,49 @@ class FieldPreprocessing(dj.Computed):
                     "lines": [],  # row indices for each field
                 }
             )
+
+            # Calculate `dx` and `dy` using the top-left reference
+            left_x = []
+            top_y = []
+            width_in_degrees = []
+            height_in_degrees = []
+            for idx, field_info in enumerate(scan_.fields):
+                width_in_degrees.append(field_info.width_in_degrees)
+                height_in_degrees.append(field_info.height_in_degrees)
+                left_x.append(field_info.x - width_in_degrees[idx] / 2)
+                top_y.append(field_info.y - height_in_degrees[idx] / 2)
+
             for field_idx, field_info in enumerate(scan_.fields):
-                ops["dx"].append(
-                    field_info.xslices[0].start
-                )  # Location of the upper left corner in the field in pixels; scan.fields[idx].x-width_in_degrees[idx]/2
-                ops["dy"].append(
-                    field_info.yslices[0].start
-                )  # Location of the upper left corner in the field in pixels
+                # Identify fields in the same plane
+                cur_plane = scan_.field_slices[field_idx]
+                idx_cur_plane = np.array(scan_.field_slices) == cur_plane
+
+                # Identify the top-left reference field within the current plane
+                ref_idx_cur_plane = np.argmin(
+                    np.array(top_y)[idx_cur_plane][np.array(left_x)[idx_cur_plane] == 
+                                                np.min(np.array(left_x)[idx_cur_plane])]
+                )
+
+                # Pixel resolution of the reference field in the current plane
+                pix_dx_plane = (
+                    np.array(width_in_degrees)[idx_cur_plane][ref_idx_cur_plane] / 
+                    np.array(scan_.field_widths)[idx_cur_plane][ref_idx_cur_plane]
+                )
+                pix_dy_plane = (
+                    np.array(height_in_degrees)[idx_cur_plane][ref_idx_cur_plane] / 
+                    np.array(scan_.field_heights)[idx_cur_plane][ref_idx_cur_plane]
+                )
+
+                # Top-left corner of the reference field
+                left_x_ref = np.array(left_x)[idx_cur_plane][ref_idx_cur_plane]
+                top_y_ref = np.array(top_y)[idx_cur_plane][ref_idx_cur_plane]
+
+                # Calculating `dx` and `dy` as offsets from the reference field
+                dx_value = (left_x[field_idx] - left_x_ref) / pix_dx_plane
+                dy_value = (top_y[field_idx] - top_y_ref) / pix_dy_plane
+
+                ops["dx"].append(int(round(dx_value)))
+                ops["dy"].append(int(round(dy_value)))
                 ops["slices"].append(field_info.slice_id)
                 ops["lines"].append(
                     np.arange(field_info.yslices[0].start, field_info.yslices[0].stop)
