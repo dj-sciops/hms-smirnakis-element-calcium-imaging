@@ -297,7 +297,7 @@ class FieldProcessing(dj.Computed):
             # calculate aspect ratio and diameter
             px_height, px_width, um_height, um_width = (
                 scan.ScanInfo.Field & key
-            ).fetch1("px_height", "px_width")
+            ).fetch1("px_height", "px_width", "um_height", "um_width")
             
             aspect = (px_width / um_width) / (px_height / um_height)
             params["aspect"] = aspect
