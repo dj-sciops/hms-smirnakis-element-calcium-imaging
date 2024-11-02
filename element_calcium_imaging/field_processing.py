@@ -295,11 +295,11 @@ class FieldProcessing(dj.Computed):
             ops_path = find_full_path(processed_root_data_dir, extra_params["ops_path"])
 
             # calculate aspect ratio and diameter
-            px_height, px_width = (
+            px_height, px_width, um_height, um_width = (
                 scan.ScanInfo.Field & key
-            ).fetch1("px_height", "px_width")
+            ).fetch1("px_height", "px_width", "um_height", "um_width")
             
-            aspect = px_width / px_height
+            aspect = (px_width / um_width) / (px_height / um_height)
             params["aspect"] = aspect
 
             diameter = params.get(
