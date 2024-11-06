@@ -336,8 +336,6 @@ class FieldProcessing(dj.Computed):
             ).fetch1("px_height", "px_width", "um_height", "um_width")
             
             aspect = (px_width / um_width) / (px_height / um_height)
-            params["aspect"] = aspect
-
             diameter = params.get(
                 "diameter", 10
             )  # default diameter is 10um unless specified in `ProcessingParamSet`
