@@ -192,13 +192,37 @@ class FieldPreprocessing(dj.Computed):
                     "lines": [],  # row indices for each field
                 }
             )
+            
+            fields_query = (
+                            scan.ScanInfo.Field.proj(
+                                "field_z",
+                                left_x_um="field_x - um_width / 2",
+                                top_y_um="field_y - um_height / 2",
+                                px_um_x="px_width / um_width",
+                                px_um_y="px_height / um_height",
+                            )
+                            & key
+                        )
+            fields_df = fields_query.fetch(
+                            format="frame", order_by="field_idx"
+                        ).reset_index()
+
+            # calculate the ref coord for each plane
+            # the left-most(x) and top-most(y) of all the fields in each plane
+            plane_left_x_ind = fields_df.groupby("field_z")["left_x_um"].idxmin()
+            plane_top_y_ind = fields_df.groupby("field_z")["top_y_um"].idxmin()
+
             for field_idx, field_info in enumerate(scan_.fields):
-                ops["dx"].append(
-                    field_info.xslices[0].start
-                )  # Location of the upper left corner in the field in pixels; scan.fields[idx].x-width_in_degrees[idx]/2
-                ops["dy"].append(
-                    field_info.yslices[0].start
-                )  # Location of the upper left corner in the field in pixels
+                # Calculating `dx` and `dy` as pixel offsets from the reference field
+                field_ = fields_df.iloc[field_idx]
+                ref_x = fields_df.iloc[plane_left_x_ind[field_.field_z]]
+                ref_y = fields_df.iloc[plane_top_y_ind[field_.field_z]]
+
+                dx_value = (field_.left_x_um - ref_x.left_x_um) * ref_x.px_um_x
+                dy_value = (field_.top_y_um - ref_y.top_y_um) * ref_y.px_um_y
+
+                ops["dx"].append(int(round(dx_value)))
+                ops["dy"].append(int(round(dy_value)))
                 ops["slices"].append(field_info.slice_id)
                 ops["lines"].append(
                     np.arange(field_info.yslices[0].start, field_info.yslices[0].stop)
@@ -300,8 +324,6 @@ class FieldProcessing(dj.Computed):
             ).fetch1("px_height", "px_width", "um_height", "um_width")
             
             aspect = (px_width / um_width) / (px_height / um_height)
-            params["aspect"] = aspect
-
             diameter = params.get(
                 "diameter", 10
             )  # default diameter is 10um unless specified in `ProcessingParamSet`
